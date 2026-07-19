@@ -1,8 +1,113 @@
-node_modules
-dist
-.output
-.vinxi
-pnpm-lock.yaml
-package-lock.json
-bun.lock
-routeTree.gen.ts
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
+import { GlassCard, CardHeader } from "@/components/glass-card";
+import { usePrefs, ROLES, type Role } from "@/lib/prefs";
+import { LANGUAGES, type Lang } from "@/lib/i18n";
+
+export const Route = createFileRoute("/settings")({
+  head: () => ({
+    meta: [
+      { title: "Settings · WorldCup AI Stadium" },
+      { name: "description", content: "Role, language, accessibility and notification preferences." },
+    ],
+  }),
+  component: SettingsPage,
+});
+
+function SettingsPage() {
+  const { role, setRole, lang, setLang, a11y, setA11y } = usePrefs();
+
+  return (
+    <AppShell title="Settings" subtitle="Console preferences">
+      <div className="grid grid-cols-12 gap-3">
+        <GlassCard className="col-span-12 lg:col-span-6">
+          <CardHeader title="Profile & role" description="Determines your sidebar and default landing view" />
+          <div className="p-4 space-y-3">
+            <label className="block">
+              <div className="text-[12px] font-medium mb-1">Active role</div>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+                className="w-full h-9 rounded-md border border-border bg-surface px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
+              >
+                {ROLES.map((r) => (
+                  <option key={r.code} value={r.code}>{r.label} — {r.hint}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <div className="text-[12px] font-medium mb-1">Language</div>
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value as Lang)}
+                className="w-full h-9 rounded-md border border-border bg-surface px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>{l.native} · {l.label}{l.rtl ? " (RTL)" : ""}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-6">
+          <CardHeader title="Accessibility" description="Applied instantly to the entire console" />
+          <div className="p-4 space-y-2 text-sm">
+            {[
+              { k: "highContrast" as const, label: "High contrast", desc: "Stronger text and border contrast." },
+              { k: "largeText" as const, label: "Larger text", desc: "+15% body text size." },
+              { k: "reduceMotion" as const, label: "Reduce motion", desc: "Disable non-essential animations." },
+            ].map((row) => (
+              <label key={row.k} className="flex items-center gap-3 rounded-md border border-border bg-surface-2 px-3 py-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={a11y[row.k]}
+                  onChange={(e) => setA11y({ [row.k]: e.target.checked } as Partial<typeof a11y>)}
+                  className="h-4 w-4 rounded"
+                />
+                <div className="flex-1">
+                  <div className="font-medium">{row.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{row.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-6">
+          <CardHeader title="Notifications" />
+          <ul className="divide-y divide-border text-[13px]">
+            {[
+              { label: "Critical incidents", value: "SMS + Push" },
+              { label: "Congestion alerts", value: "Push" },
+              { label: "Digest email", value: "Daily · 08:00" },
+              { label: "AI briefings", value: "On demand" },
+            ].map((i) => (
+              <li key={i.label} className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">{i.label}</span>
+                <span className="font-medium">{i.value}</span>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-6">
+          <CardHeader title="AI & data" />
+          <ul className="divide-y divide-border text-[13px]">
+            {[
+              { label: "Chat model", value: "Gemini 3 Flash" },
+              { label: "Voice input", value: "Web Speech API" },
+              { label: "Data retention", value: "30 days" },
+              { label: "Telemetry", value: "Aggregated only" },
+            ].map((i) => (
+              <li key={i.label} className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-muted-foreground">{i.label}</span>
+                <span className="font-medium">{i.value}</span>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      </div>
+    </AppShell>
+  );
+}

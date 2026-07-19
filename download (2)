@@ -1,6 +1,180 @@
-{
-  "printWidth": 100,
-  "semi": true,
-  "singleQuote": false,
-  "trailingComma": "all"
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
+import { GlassCard, CardHeader } from "@/components/glass-card";
+import { useLiveStadium, densityFromPct } from "@/lib/mock/live";
+import { useEffect, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+export const Route = createFileRoute("/stadium")({
+  head: () => ({
+    meta: [
+      { title: "Crowd Analytics · WorldCup AI Stadium" },
+      { name: "description", content: "Occupancy, flows, gate congestion and zone heatmap." },
+    ],
+  }),
+  component: CrowdAnalytics,
+});
+
+const tooltipStyle = {
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: 8,
+  fontSize: 12,
+  boxShadow: "0 4px 12px rgb(15 23 42 / 0.08)",
+  color: "var(--color-foreground)",
+} as const;
+
+function CrowdAnalytics() {
+  const snap = useLiveStadium();
+  const [insight, setInsight] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ctx = `Occupancy: ${snap.occupancyPct}%. Zones: ${snap.zones.map((z) => `${z.name} ${z.pct}%`).join("; ")}.`;
+      try {
+        const r = await fetch("/api/insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ context: ctx }),
+        });
+        const j = (await r.json()) as { text?: string };
+        if (!cancelled) setInsight(j.text ?? "");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <AppShell title="Crowd Analytics" subtitle="Real-time attendance, flow and density">
+      <div className="grid grid-cols-12 gap-3">
+        <GlassCard className="col-span-12 lg:col-span-8">
+          <CardHeader title="Occupancy · last hour" description={`Attendance ${snap.occupancyPct}% · capacity 82,500`} />
+          <div className="p-4 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={snap.seriesOccupancy} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="occ2" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="t" stroke="var(--color-muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area type="monotone" dataKey="v" stroke="var(--color-chart-1)" fill="url(#occ2)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-4">
+          <CardHeader
+            title={<span className="flex items-center gap-2"><Sparkles className="h-3.5 w-3.5 text-primary" /> AI insights</span>}
+            description="Live operational commentary"
+          />
+          <div className="p-4 text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
+            {loading ? (
+              <span className="flex items-center gap-2 text-muted-foreground text-xs"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing…</span>
+            ) : insight || "No insights available."}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-8">
+          <CardHeader title="Entry / exit flow" description="People per 5 min bucket" />
+          <div className="p-4 h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={snap.seriesFlow} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="t" stroke="var(--color-muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="entries" fill="var(--color-chart-1)" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="exits" fill="var(--color-chart-4)" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-4">
+          <CardHeader title="Zone heatmap" description="Density by area" />
+          <div className="p-4 space-y-2">
+            {snap.zones.map((z) => {
+              const d = densityFromPct(z.pct);
+              return (
+                <div key={z.name} className="flex items-center gap-3 text-[13px]">
+                  <div className="flex-1 truncate">{z.name}</div>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={
+                        d === "critical" ? "h-full bg-danger" : d === "busy" ? "h-full bg-warning" : d === "medium" ? "h-full bg-primary" : "h-full bg-success"
+                      }
+                      style={{ width: `${z.pct}%` }}
+                    />
+                  </div>
+                  <div className="w-10 text-right tabular-nums text-muted-foreground">{z.pct}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12">
+          <CardHeader title="Gate congestion" description="Wait times and utilization" />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                  <th className="text-left font-medium px-4 py-2">Gate</th>
+                  <th className="text-right font-medium px-4 py-2">Wait (min)</th>
+                  <th className="text-right font-medium px-4 py-2">Load</th>
+                  <th className="px-4 py-2">Utilization</th>
+                  <th className="text-left font-medium px-4 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snap.gates.map((g) => {
+                  const d = densityFromPct(g.pct);
+                  return (
+                    <tr key={g.id} className="border-t border-border">
+                      <td className="px-4 py-2.5 font-medium">{g.name}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{g.waitMin}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{g.pct}%</td>
+                      <td className="px-4 py-2.5 w-64">
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={d === "critical" ? "h-full bg-danger" : d === "busy" ? "h-full bg-warning" : d === "medium" ? "h-full bg-primary" : "h-full bg-success"}
+                            style={{ width: `${g.pct}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-[11px] uppercase tracking-wider text-muted-foreground">{d}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      </div>
+    </AppShell>
+  );
 }

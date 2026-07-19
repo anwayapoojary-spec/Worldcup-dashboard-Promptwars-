@@ -1,32 +1,86 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
+import { GlassCard, CardHeader } from "@/components/glass-card";
+import { Download, FileBarChart2 } from "lucide-react";
+import { MATCH_SCHEDULE } from "@/lib/mock/live";
 
-node_modules
-dist
-dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
-*.local
+export const Route = createFileRoute("/reports")({
+  head: () => ({
+    meta: [
+      { title: "Reports · WorldCup AI Stadium" },
+      { name: "description", content: "Match reports, incident summaries, and exports." },
+    ],
+  }),
+  component: ReportsPage,
+});
 
-# Wrangler / Cloudflare
-.wrangler/
-.dev.vars
+const REPORTS = [
+  { id: "RPT-1042", name: "Match-day operations · ARG–BRA", type: "Operations", date: "Jun 18", size: "2.4 MB" },
+  { id: "RPT-1041", name: "Security incident summary · week 24", type: "Security", date: "Jun 17", size: "812 KB" },
+  { id: "RPT-1040", name: "Medical response times · Q2", type: "Medical", date: "Jun 15", size: "1.1 MB" },
+  { id: "RPT-1039", name: "Transportation modal split", type: "Transport", date: "Jun 12", size: "540 KB" },
+  { id: "RPT-1038", name: "Accessibility service utilization", type: "Accessibility", date: "Jun 10", size: "320 KB" },
+];
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+function ReportsPage() {
+  return (
+    <AppShell title="Reports" subtitle="Operational analytics and exports">
+      <div className="grid grid-cols-12 gap-3">
+        <GlassCard className="col-span-12 lg:col-span-8">
+          <CardHeader
+            title={<span className="flex items-center gap-2"><FileBarChart2 className="h-3.5 w-3.5" /> Available reports</span>}
+            description="Generated in the last 30 days"
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                  <th className="text-left font-medium px-4 py-2">ID</th>
+                  <th className="text-left font-medium px-4 py-2">Report</th>
+                  <th className="text-left font-medium px-4 py-2">Type</th>
+                  <th className="text-left font-medium px-4 py-2">Date</th>
+                  <th className="text-right font-medium px-4 py-2">Size</th>
+                  <th className="px-4 py-2 w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {REPORTS.map((r) => (
+                  <tr key={r.id} className="border-t border-border hover:bg-accent/40">
+                    <td className="px-4 py-2.5 font-mono text-[12px] text-muted-foreground">{r.id}</td>
+                    <td className="px-4 py-2.5 font-medium">{r.name}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{r.type}</td>
+                    <td className="px-4 py-2.5 tabular-nums">{r.date}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{r.size}</td>
+                    <td className="px-4 py-2.5">
+                      <button className="p-1.5 rounded-md hover:bg-accent text-muted-foreground" aria-label="Download">
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-4">
+          <CardHeader title="Upcoming matches" description="Report generation queue" />
+          <ul className="divide-y divide-border">
+            {MATCH_SCHEDULE.map((m) => (
+              <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="w-14 text-[11px] tabular-nums text-muted-foreground">
+                  <div className="text-foreground font-medium">{m.date}</div>
+                  {m.time}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium truncate">{m.teams}</div>
+                  <div className="text-[11px] text-muted-foreground">{m.stage}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      </div>
+    </AppShell>
+  );
+}

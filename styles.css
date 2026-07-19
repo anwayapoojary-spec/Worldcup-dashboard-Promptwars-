@@ -1,0 +1,149 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/app-shell";
+import { GlassCard, CardHeader } from "@/components/glass-card";
+import { POIS, CATEGORY_META, type Poi, type PoiCategory } from "@/lib/mock/stadium";
+import { useMemo, useState } from "react";
+import { Route as RouteIcon, Filter } from "lucide-react";
+
+export const Route = createFileRoute("/navigation")({
+  head: () => ({
+    meta: [
+      { title: "Stadium Map · WorldCup AI Stadium" },
+      { name: "description", content: "Interactive stadium map with crowd-adjusted routing." },
+    ],
+  }),
+  component: NavPage,
+});
+
+function NavPage() {
+  const [active, setActive] = useState<Set<PoiCategory>>(
+    new Set(Object.keys(CATEGORY_META) as PoiCategory[]),
+  );
+  const [from, setFrom] = useState<Poi>(POIS.find((p) => p.id === "e2")!);
+  const [to, setTo] = useState<Poi>(POIS.find((p) => p.id === "seat")!);
+
+  const visible = useMemo(() => POIS.filter((p) => active.has(p.category)), [active]);
+  const dist = Math.hypot(to.x - from.x, to.y - from.y);
+  const walkMin = Math.max(1, Math.round(dist / 60));
+  const crowdMin = walkMin + Math.round(Math.random() * 3);
+
+  function toggle(cat: PoiCategory) {
+    setActive((s) => {
+      const n = new Set(s);
+      if (n.has(cat)) n.delete(cat);
+      else n.add(cat);
+      return n;
+    });
+  }
+
+  const [target, setTarget] = useState<"from" | "to">("to");
+
+  function onPick(p: Poi) {
+    if (target === "from") {
+      setFrom(p);
+      setTarget("to");
+    } else {
+      setTo(p);
+      setTarget("from");
+    }
+  }
+
+  return (
+    <AppShell title="Stadium Map" subtitle="Tap two points to compute a crowd-adjusted route">
+      <div className="grid grid-cols-12 gap-3">
+        <GlassCard className="col-span-12 lg:col-span-3">
+          <CardHeader title={<span className="flex items-center gap-2"><Filter className="h-3.5 w-3.5" /> Filters</span>} description={`${visible.length} points visible`} />
+          <div className="p-3 space-y-0.5">
+            {(Object.keys(CATEGORY_META) as PoiCategory[]).map((cat) => {
+              const m = CATEGORY_META[cat];
+              const on = active.has(cat);
+              return (
+                <button
+                  key={cat}
+                  onClick={() => toggle(cat)}
+                  className={`w-full flex items-center justify-between rounded-md px-2.5 py-1.5 text-[13px] transition ${
+                    on ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: m.color }} />
+                    {m.label}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider">{on ? "On" : "Off"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-6 overflow-hidden">
+          <CardHeader title="Concourse map" description={`Tap to set ${target === "from" ? "start" : "destination"}`} />
+          <div className="p-2">
+            <div className="relative rounded-md border border-border bg-surface-2 overflow-hidden">
+              <svg viewBox="0 0 600 400" className="w-full h-[420px]">
+                {/* concentric rings */}
+                {[180, 150, 120].map((r) => (
+                  <ellipse key={r} cx="300" cy="200" rx={r * 1.3} ry={r} fill="none" stroke="var(--color-border)" />
+                ))}
+                {/* pitch */}
+                <rect x="220" y="160" width="160" height="80" rx="6" fill="color-mix(in oklab, var(--color-success) 12%, transparent)" stroke="color-mix(in oklab, var(--color-success) 45%, transparent)" />
+                <text x="300" y="205" textAnchor="middle" fontSize="11" fill="var(--color-success)" style={{ letterSpacing: 2 }}>PITCH</text>
+
+                {/* route line */}
+                <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="var(--color-primary)" strokeWidth="2" strokeDasharray="5 5" />
+
+                {/* POIs */}
+                {visible.map((p) => {
+                  const m = CATEGORY_META[p.category];
+                  const isFrom = p.id === from.id;
+                  const isTo = p.id === to.id;
+                  return (
+                    <g key={p.id} className="cursor-pointer" onClick={() => onPick(p)}>
+                      <circle cx={p.x} cy={p.y} r={isFrom || isTo ? 7 : 4.5} fill={m.color} stroke="var(--color-surface)" strokeWidth="1.5" />
+                      {(isFrom || isTo) && (
+                        <text x={p.x + 10} y={p.y + 4} fontSize="10" fill="var(--color-foreground)">
+                          {isFrom ? "A" : "B"}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-3">
+          <CardHeader title={<span className="flex items-center gap-2"><RouteIcon className="h-3.5 w-3.5" /> Route</span>} description="Crowd-adjusted ETA" />
+          <div className="p-4 space-y-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">From (A)</div>
+              <button onClick={() => setTarget("from")} className={`w-full text-left text-[13px] rounded-md border px-2.5 py-2 ${target === "from" ? "border-primary ring-2 ring-ring/25" : "border-border"}`}>
+                {from.name}
+              </button>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">To (B)</div>
+              <button onClick={() => setTarget("to")} className={`w-full text-left text-[13px] rounded-md border px-2.5 py-2 ${target === "to" ? "border-primary ring-2 ring-ring/25" : "border-border"}`}>
+                {to.name}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Walk</div>
+                <div className="text-lg font-semibold tabular-nums">{walkMin} min</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">With crowd</div>
+                <div className="text-lg font-semibold tabular-nums text-primary">{crowdMin} min</div>
+              </div>
+            </div>
+            <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-foreground">
+              Route avoids Gate B congestion (78% load). Consider the East concourse.
+            </div>
+          </div>
+        </GlassCard>
+      </div>
+    </AppShell>
+  );
+}
